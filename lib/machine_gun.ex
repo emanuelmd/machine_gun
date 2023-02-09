@@ -211,9 +211,9 @@ defmodule MachineGun do
           body: body
         }
 
-        if Map.get(opts, :log_requests) do
+        if Map.get(pool_opts, :log_requests) do
           logged_body =
-            if Map.get(opts, :log_body, false) do
+            if Map.get(pool_opts, :log_body, false) do
               body
             else
               nil
