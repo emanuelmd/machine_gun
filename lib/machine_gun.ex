@@ -148,16 +148,17 @@ defmodule MachineGun do
       time_s = time_us / 1_000_000
       success? = match?({:ok, _}, result)
 
-      common_metadata = [url: url, body: inspect(body, limit: 1024), time_s: time_s]
+      log_lines = ["URL: #{url}", "Time (s): #{time_s}", "Body: #{inspect(body, limit: 1024)}"]
 
-      {log_message, metadata} =
+      log_message =
         if success? do
-          {"MachineGun success", common_metadata}
+          ["MachineGun success" | log_lines]
         else
-          {"MachineGun fail", [{:error, inspect(result.reason)} | common_metadata]}
+          ["MachineGun fail", "Error: #{inspect(result.error)}" | log_lines]
         end
+        |> Enum.join("\n")
 
-      Logger.info(log_message, metadata)
+      Logger.info(log_message)
 
       result
     else
