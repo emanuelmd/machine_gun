@@ -3,6 +3,8 @@ defmodule MachineGun do
 
   alias MachineGun.{Supervisor, Worker, Response, Request}
 
+  require Logger
+
   @type request_headers() :: [tuple(), ...] | []
   @type request_opts() :: [tuple(), ...] | [] | map
   @type response_or_error :: {:ok, Response.t()} | {:error, any}
@@ -137,6 +139,37 @@ defmodule MachineGun do
 
   def request(method, url, body, headers, opts)
       when is_binary(url) and is_list(headers) and is_map(opts) do
+    log_and_time = Application.get_env(:machine_gun, :log_and_time, false)
+    pool = Map.get(opts, :pool_group, :default)
+
+    if log_and_time and pool == :default do
+      {time_us, result} = :timer.tc(fn -> send_request(method, url, body, headers, opts) end)
+
+      time_s = time_us / 1_000_000
+      success? = match?({:ok, _}, result)
+
+      log_lines = ["URL: #{url}", "Time (s): #{time_s}", "Body: #{inspect(body, limit: 1024)}"]
+
+      log_message =
+        case result do
+          {:ok, _} ->
+            ["MachineGun success" | log_lines]
+
+          {:error, error} ->
+            ["MachineGun fail", "Error: #{inspect(error.reason)}" | log_lines]
+        end
+        |> Enum.join("\n")
+
+      Logger.info(log_message)
+
+      result
+    else
+      send_request(method, url, body, headers, opts)
+    end
+  end
+
+  def send_request(method, url, body, headers, opts)
+      when is_binary(url) and is_list(headers) and is_map(opts) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host, path: path, port: port, query: query}
       when is_binary(host) and is_integer(port) and (scheme === "http" or scheme == "https") ->
@@ -216,7 +249,11 @@ defmodule MachineGun do
             size = pool_opts |> Map.get(:pool_size, @default_pool_size)
             max_overflow = pool_opts |> Map.get(:pool_max_overflow, @default_pool_max_overflow)
             strategy = pool_opts |> Map.get(:pool_strategy, @default_pool_strategy)
-            conn_opts = pool_opts |> Map.get(:conn_opts, %{})
+
+            conn_opts =
+              pool_opts
+              |> Map.get(:conn_opts, %{})
+              |> maybe_adjust_transport_opts(transport)
 
             conn_opts =
               %{
@@ -243,6 +280,21 @@ defmodule MachineGun do
         {:error, %Error{reason: :bad_url}}
     end
   end
+
+  defp maybe_adjust_transport_opts(conn_opts, :ssl) do
+    default = MapSet.new(verify: :verify_none)
+
+    transport_opts =
+      conn_opts
+      |> Map.get(:transport_opts, [])
+      |> Enum.into(default)
+      |> MapSet.to_list()
+
+    Map.put(conn_opts, :transport_opts, transport_opts)
+  end
+
+  defp maybe_adjust_transport_opts(conn_opts, _transport),
+    do: conn_opts
 
   defp ensure_pool(pool, host, port, size, max_overflow, strategy, conn_opts) do
     case Supervisor.start(
