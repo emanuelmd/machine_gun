@@ -139,10 +139,7 @@ defmodule MachineGun do
 
   def request(method, url, body, headers, opts)
       when is_binary(url) and is_list(headers) and is_map(opts) do
-    pool = Map.get(opts, :pool_group, :default)
-    pool_opts = Application.get_env(:machine_gun, pool, %{})
-
-    log_and_time = Map.get(pool_opts, :log_and_time, false)
+    log_and_time = Application.get_env(:machine_gun, :log_and_time, false)
 
     if log_and_time do
       clipped_body =
@@ -155,7 +152,7 @@ defmodule MachineGun do
       {time_us, result} = :timer.tc(fn -> send_request(method, url, body, headers, opts) end)
 
       time_s = time_us / 1_000_000
-      success? = match?(result, {:ok, _})
+      success? = match?({:ok, _}, result)
 
       common_metadata = [url: url, body: clipped_body, time_s: time_s]
 
