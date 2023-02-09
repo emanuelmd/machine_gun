@@ -142,25 +142,18 @@ defmodule MachineGun do
     log_and_time = Application.get_env(:machine_gun, :log_and_time, false)
 
     if log_and_time do
-      clipped_body =
-        if is_binary(body) and String.length(body) > 1024 do
-          String.slice(body, 0, 1024)
-        else
-          body
-        end
-
       {time_us, result} = :timer.tc(fn -> send_request(method, url, body, headers, opts) end)
 
       time_s = time_us / 1_000_000
       success? = match?({:ok, _}, result)
 
-      common_metadata = [url: url, body: clipped_body, time_s: time_s]
+      common_metadata = [url: url, body: inspect(body, limit: 1024), time_s: time_s]
 
       {log_message, metadata} =
         if success? do
-          {"Successful request", Keyword.put(common_metadata, :time_s, time_s)}
+          {"Successful request", common_metadata}
         else
-          {"Failed request", Keyword.put(common_metadata, error: result.reason)}
+          {"Failed request", [{:error, result.reason} | common_metadata]}
         end
 
       Logger.info(log_message, metadata)
