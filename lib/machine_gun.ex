@@ -140,8 +140,9 @@ defmodule MachineGun do
   def request(method, url, body, headers, opts)
       when is_binary(url) and is_list(headers) and is_map(opts) do
     log_and_time = Application.get_env(:machine_gun, :log_and_time, false)
+    pool = Map.get(opts, :pool_group, :default)
 
-    if log_and_time do
+    if log_and_time and pool == :default do
       {time_us, result} = :timer.tc(fn -> send_request(method, url, body, headers, opts) end)
 
       time_s = time_us / 1_000_000
