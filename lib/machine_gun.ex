@@ -151,10 +151,12 @@ defmodule MachineGun do
       log_lines = ["URL: #{url}", "Time (s): #{time_s}", "Body: #{inspect(body, limit: 1024)}"]
 
       log_message =
-        if success? do
-          ["MachineGun success" | log_lines]
-        else
-          ["MachineGun fail", "Error: #{inspect(result.error)}" | log_lines]
+        case result do
+          {:ok, _} ->
+            ["MachineGun success" | log_lines]
+
+          {:error, error} ->
+            ["MachineGun fail", "Error: #{inspect(error.reason)}" | log_lines]
         end
         |> Enum.join("\n")
 
