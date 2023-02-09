@@ -139,6 +139,43 @@ defmodule MachineGun do
 
   def request(method, url, body, headers, opts)
       when is_binary(url) and is_list(headers) and is_map(opts) do
+    pool = Map.get(opts, :pool_group, :default)
+    pool_opts = Application.get_env(:machine_gun, pool, %{})
+
+    log_and_time = Map.get(pool_opts, :log_and_time, false)
+
+    if log_and_time do
+      clipped_body =
+        if is_binary(body) and String.length(body) > 1024 do
+          String.slice(body, 0, 1024)
+        else
+          body
+        end
+
+      {time_us, result} = :timer.tc(fn -> send_request(method, url, body, headers, opts) end)
+
+      time_s = time_us / 1_000_000
+      success? = match?(result, {:ok, _})
+
+      common_metadata = [url: url, body: clipped_body, time_s: time_s]
+
+      {log_message, metadata} =
+        if success? do
+          {"Successful request", Keyword.put(common_metadata, :time_s, time_s)}
+        else
+          {"Failed request", [Keyword.put(common_metadata, error: result.reason)]}
+        end
+
+      Logger.info(log_message, metadata)
+
+      result
+    else
+      send_request(method, url, body, headers, opts)
+    end
+  end
+
+  def send_request(method, url, body, headers, opts)
+      when is_binary(url) and is_list(headers) and is_map(opts) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host, path: path, port: port, query: query}
       when is_binary(host) and is_integer(port) and (scheme === "http" or scheme == "https") ->
@@ -210,22 +247,6 @@ defmodule MachineGun do
           headers: headers,
           body: body
         }
-
-        if Map.get(pool_opts, :log_requests) do
-          logged_body =
-            if Map.get(pool_opts, :log_body, false) do
-              body
-            else
-              nil
-            end
-
-          Logger.info("MachineGun.request",
-            method: method,
-            headers: headers,
-            body: logged_body,
-            pool: pool
-          )
-        end
 
         try do
           do_request(pool, url, request, pool_timeout, request_timeout)
