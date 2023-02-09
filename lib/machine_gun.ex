@@ -152,9 +152,9 @@ defmodule MachineGun do
 
       {log_message, metadata} =
         if success? do
-          {"Successful request", common_metadata}
+          {"MachineGun success", common_metadata}
         else
-          {"Failed request", [{:error, result.reason} | common_metadata]}
+          {"MachineGun fail", [{:error, result.reason} | common_metadata]}
         end
 
       Logger.info(log_message, metadata)
