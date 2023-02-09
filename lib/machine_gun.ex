@@ -163,7 +163,7 @@ defmodule MachineGun do
         if success? do
           {"Successful request", Keyword.put(common_metadata, :time_s, time_s)}
         else
-          {"Failed request", [Keyword.put(common_metadata, error: result.reason)]}
+          {"Failed request", Keyword.put(common_metadata, error: result.reason)}
         end
 
       Logger.info(log_message, metadata)
